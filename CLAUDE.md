@@ -49,6 +49,8 @@ pytest -v                    # testes (nunca chamam a Gupy de verdade)
   `passa_localizacao()` e `filtrar_vagas(vagas, config)`.
 - `bot_vagas/banco.py` — `conectar()`, `esta_vazio()`, `separar_novas()`, `registrar()` e
   `inicializar()`. Tabela `vagas_vistas` (`id` da Gupy como chave).
+- `bot_vagas/telegram.py` — `formatar_vaga()`, `montar_mensagem()`, `montar_aviso_falha()`,
+  `dividir_mensagem()`, `enviar_texto()` e `ler_credenciais()`. Erros viram `ErroTelegram`.
 - `dados/vagas.db` — banco SQLite **commitado** pelo Actions (exceção no `.gitignore`).
 
 ## Regras de filtro (Fase 2, implementadas)
@@ -70,11 +72,23 @@ pytest -v                    # testes (nunca chamam a Gupy de verdade)
   continuam novas e saem na próxima execução.
 - `INSERT OR IGNORE`: registrar a mesma vaga duas vezes não dá erro.
 
+## Regras do Telegram (Fase 4, implementadas)
+- API `sendMessage` via `requests`, `parse_mode="HTML"`, sem prévia de links. Títulos,
+  empresas e erros passam por `html.escape` ("P&D" → "P&amp;D").
+- Cada vaga: título em negrito (+ "🏷 Banco de talentos" se `eh_banco_talentos`), linha
+  "empresa · local · modelo" e link "Ver vaga". Vaga remota mostra "Remoto" uma vez só
+  (sem repetir o modelo); modelo "não informado" não aparece.
+- Cabeçalho com singular/plural ("1 vaga nova" / "3 vagas novas") e data no fuso
+  `America/Sao_Paulo` (o Actions roda em UTC). Sem vagas: "Nenhuma vaga nova hoje".
+  Aviso de busca parcial quando houver `termos_com_falha`.
+- Mensagens acima de 4096 caracteres são divididas **entre** blocos (nunca no meio de uma
+  tag), com pausa entre os envios.
+- Se **qualquer** pedaço falhar, `enviar_texto()` lança `ErroTelegram` e nenhuma vaga deve ser
+  registrada: os pedaços já entregues se repetem no dia seguinte. Preferimos repetir a perder vagas.
+- O token fica na URL da API, então a URL **nunca** aparece em erros ou logs (`from None`
+  esconde a exceção original do `requests`).
+
 ## Regras combinadas para as próximas fases
-- **Fase 4 — Telegram (`telegram.py`):** HTML com link "Ver vaga"; etiqueta "Banco de
-  talentos" nas vagas com `eh_banco_talentos`; dividir mensagens acima de
-  4096 caracteres; "Nenhuma vaga nova hoje" quando não houver vagas; aviso de falha em caso de
-  erro; aviso de busca parcial quando houver `termos_com_falha`.
 - **Fase 5 — `main.py`:** ordem: buscar → filtrar → `separar_novas` → enviar → `registrar`.
   - `--dry-run` mostra a mensagem no terminal sem enviar (e sem registrar no banco).
   - `--inicializar` só popula o banco (`inicializar()`), sem enviar mensagem.
@@ -87,4 +101,5 @@ pytest -v                    # testes (nunca chamam a Gupy de verdade)
 - [x] Fase 1 — estrutura + busca na Gupy
 - [x] Fase 2 — filtros (palavras-chave, localização, banco de talentos)
 - [x] Fase 3 — banco SQLite de vagas já vistas
-- [ ] Fases 4 a 6
+- [x] Fase 4 — envio pelo Telegram
+- [ ] Fases 5 e 6
