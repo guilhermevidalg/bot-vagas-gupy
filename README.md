@@ -8,10 +8,10 @@ SQLite e envia as novas no Telegram.
 
 ## Status das fases
 - [x] Fase 1 — estrutura do projeto e busca de vagas na Gupy (`bot_vagas/gupy.py`)
-- [ ] Fase 2 — filtros (palavras-chave, palavras excluídas, localização)
-- [ ] Fase 3 — banco SQLite (`dados/vagas.db`) e `--inicializar`
-- [ ] Fase 4 — envio no Telegram (HTML, divisão em 4096 caracteres)
-- [ ] Fase 5 — `main.py` com `--dry-run`
+- [x] Fase 2 — filtros (palavras-chave, palavras excluídas, localização)
+- [x] Fase 3 — banco SQLite (`dados/vagas.db`)
+- [x] Fase 4 — envio no Telegram (HTML, divisão em 4096 caracteres)
+- [x] Fase 5 — `main.py` com `--dry-run` e `--inicializar`
 - [ ] Fase 6 — GitHub Actions
 
 ## Como rodar localmente
@@ -22,6 +22,17 @@ pip3 install -r requirements.txt
 pytest -v
 ```
 
+## Como usar
+```bash
+python -m bot_vagas.main --dry-run      # mostra a mensagem do dia, sem enviar nem gravar
+python -m bot_vagas.main --inicializar  # só registra as vagas atuais no banco
+python -m bot_vagas.main                # busca, envia as novas no Telegram e registra
+```
+Na primeira execução (banco vazio), o bot registra as vagas atuais e envia só um aviso de
+"Bot iniciado". A partir daí, envia apenas as vagas novas de cada dia.
+
 ## Configuração
 - `config.toml`: termos de busca, palavras-chave, palavras excluídas e estados permitidos.
 - `.env` (copie de `.env.example`): `TELEGRAM_TOKEN` e `TELEGRAM_CHAT_ID`. Nunca vai para o Git.
+
+Os planos de cada fase ficam em [`docs/planos/`](docs/planos/).

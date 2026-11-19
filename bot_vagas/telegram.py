@@ -8,6 +8,7 @@ para o main.py (Fase 5).
 import html
 import logging
 import os
+import re
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -26,7 +27,23 @@ FUSO = ZoneInfo("America/Sao_Paulo")
 # Linha em branco entre blocos: também é onde a mensagem pode ser dividida
 SEPARADOR = "\n\n"
 
+# Formato de token de bot: números, ":" e uma sequência longa de letras/números/_/-
+PADRAO_TOKEN = re.compile(r"\d{5,}:[A-Za-z0-9_-]{20,}")
+
 logger = logging.getLogger(__name__)
+
+
+def esconder_token(texto: str, token: str | None = None) -> str:
+    """Troca o token por *** antes de o texto ir para log ou mensagem.
+
+    Erros de conexão do requests trazem a URL inteira, e a URL do Telegram
+    contém o token. O log do GitHub Actions é público, então todo texto de
+    erro passa por aqui. Esconde o token informado e qualquer coisa com
+    cara de token (proteção extra).
+    """
+    if token:
+        texto = texto.replace(token, "***")
+    return PADRAO_TOKEN.sub("***", texto)
 
 
 class ErroTelegram(Exception):
