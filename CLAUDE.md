@@ -62,6 +62,8 @@ python -m bot_vagas.main             # execução normal (a do Actions)
   `main()` (argparse: `--dry-run`, `--inicializar`, `--banco`). Rodar com
   `python -m bot_vagas.main`.
 - `dados/vagas.db` — banco SQLite **commitado** pelo Actions (exceção no `.gitignore`).
+- `.github/workflows/bot-vagas.yml` — execução diária + botão manual; commita o banco.
+- `.github/workflows/testes.yml` — `pytest` em todo push na main e em todo PR.
 
 ## Regras de filtro (Fase 2, implementadas)
 - Normalizar textos antes de comparar (minúsculas, sem acento).
@@ -111,8 +113,16 @@ python -m bot_vagas.main             # execução normal (a do Actions)
 - No fim de cada execução, o log mostra o resumo: buscadas, aceitas, novas, enviadas e termos
   com falha.
 
-## Regras combinadas para as próximas fases
-- **Fase 6 — GitHub Actions:** execução diária, Secrets do Telegram, commit do `dados/vagas.db`.
+## Regras do GitHub Actions (Fase 6, implementadas)
+- `bot-vagas.yml`: cron `17 11 * * *` (08:17 em Brasília; minuto quebrado para fugir do
+  congestionamento das horas cheias) + `workflow_dispatch` para rodar manualmente.
+- Roda os testes antes do bot; se falharem, o bot não roda.
+- Secrets `TELEGRAM_TOKEN` e `TELEGRAM_CHAT_ID` viram variáveis de ambiente (não há `.env`).
+- `permissions: contents: write` e `concurrency` (nunca duas execuções juntas).
+- Commit do `dados/vagas.db` só se mudou, como `github-actions[bot]`, com `git pull --rebase`
+  antes do push. Commits feitos pelo Actions não disparam outros workflows (sem loop).
+- Python 3.12, `actions/checkout@v7` e `actions/setup-python@v7`.
+- Workflows agendados são desativados após 60 dias sem atividade no repositório.
 
 ## Status
 - [x] Fase 1 — estrutura + busca na Gupy
@@ -120,4 +130,4 @@ python -m bot_vagas.main             # execução normal (a do Actions)
 - [x] Fase 3 — banco SQLite de vagas já vistas
 - [x] Fase 4 — envio pelo Telegram
 - [x] Fase 5 — `main.py` ligando tudo
-- [ ] Fase 6 — GitHub Actions
+- [x] Fase 6 — GitHub Actions (execução diária)
