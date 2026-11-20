@@ -12,6 +12,8 @@ em linguagem simples; depois, explicar as partes principais do código.
 python3.12 -m venv .venv && source .venv/bin/activate
 pip3 install -r requirements.txt
 pytest -v                    # testes (nunca chamam a Gupy de verdade)
+python -m bot_vagas.main --dry-run   # mostra a mensagem do dia sem enviar nem gravar
+python -m bot_vagas.main             # execução normal (a do Actions)
 ```
 
 ## Convenções
@@ -22,6 +24,9 @@ pytest -v                    # testes (nunca chamam a Gupy de verdade)
   nunca fixa no código.
 - Segredos (`TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`) só via variáveis de ambiente: `.env` local
   (fora do Git) e GitHub Secrets no Actions. Manter `.env.example` atualizado.
+- O `.env` é lido só pelo Python (`carregar_env()`). **Nunca** usar `source .env` no terminal:
+  com espaço depois do `=`, o shell executa o valor e mostra o token no erro.
+- Planos de cada fase ficam em `docs/planos/`.
 - Testes com pytest + `responses` (simula a API). Toda funcionalidade nova ganha teste.
 - Tudo gratuito; repositório público.
 - Commits sem `Co-Authored-By` nem menção ao Claude. Fazer `git push` logo após cada commit.
@@ -41,7 +46,8 @@ pytest -v                    # testes (nunca chamam a Gupy de verdade)
   - `type == "vacancy_type_talent_pool"` marca banco de talentos (`Vaga.eh_banco_talentos`).
 
 ## Estrutura
-- `bot_vagas/config.py` — `carregar_config()`.
+- `bot_vagas/config.py` — `carregar_config()` e `carregar_env()` (lê o `.env` como texto,
+  tira espaços, não sobrescreve variáveis que já existem).
 - `bot_vagas/gupy.py` — `Vaga` (dataclass), `buscar_vagas()` (um termo, paginado) e
   `buscar_todos()` → `(vagas, termos_com_falha)`. Deduplica por `id`; `Vaga.termos` guarda
   todos os termos que encontraram a vaga. Um termo com erro não interrompe os outros.
@@ -50,7 +56,11 @@ pytest -v                    # testes (nunca chamam a Gupy de verdade)
 - `bot_vagas/banco.py` — `conectar()`, `esta_vazio()`, `separar_novas()`, `registrar()` e
   `inicializar()`. Tabela `vagas_vistas` (`id` da Gupy como chave).
 - `bot_vagas/telegram.py` — `formatar_vaga()`, `montar_mensagem()`, `montar_aviso_falha()`,
-  `dividir_mensagem()`, `enviar_texto()` e `ler_credenciais()`. Erros viram `ErroTelegram`.
+  `dividir_mensagem()`, `enviar_texto()`, `ler_credenciais()` e `esconder_token()`. Erros
+  viram `ErroTelegram`.
+- `bot_vagas/main.py` — `executar(config, conn, dry_run, so_inicializar)` (devolve 0 ou 1) e
+  `main()` (argparse: `--dry-run`, `--inicializar`, `--banco`). Rodar com
+  `python -m bot_vagas.main`.
 - `dados/vagas.db` — banco SQLite **commitado** pelo Actions (exceção no `.gitignore`).
 
 ## Regras de filtro (Fase 2, implementadas)
@@ -88,13 +98,20 @@ pytest -v                    # testes (nunca chamam a Gupy de verdade)
 - O token fica na URL da API, então a URL **nunca** aparece em erros ou logs (`from None`
   esconde a exceção original do `requests`).
 
+## Regras do main (Fase 5, implementadas)
+- Ordem: credenciais → buscar → filtrar → `separar_novas` → enviar → `registrar` (só se o
+  envio der certo). Credenciais primeiro: sem token, falha antes de gastar minutos na Gupy.
+- `--dry-run` imprime a mensagem sem enviar nem gravar; `--inicializar` só popula o banco.
+  Os dois não podem ser usados juntos.
+- Banco vazio: envia só "🤖 Bot iniciado: N vagas registradas..." e depois registra.
+- Busca parcial não é erro (mensagem sai com ⚠️). **Todos** os termos falhando é erro.
+- Qualquer erro: log + aviso de falha no Telegram + código de saída 1 (Actions fica vermelho).
+- **Token nunca no log:** todo texto de erro passa por `esconder_token()` (troca por `***`), e
+  o `FiltroSegredos` faz o mesmo em toda mensagem de log. O log do Actions é público.
+- No fim de cada execução, o log mostra o resumo: buscadas, aceitas, novas, enviadas e termos
+  com falha.
+
 ## Regras combinadas para as próximas fases
-- **Fase 5 — `main.py`:** ordem: buscar → filtrar → `separar_novas` → enviar → `registrar`.
-  - `--dry-run` mostra a mensagem no terminal sem enviar (e sem registrar no banco).
-  - `--inicializar` só popula o banco (`inicializar()`), sem enviar mensagem.
-  - Banco vazio sem `--inicializar`: inicializar automaticamente e enviar só um aviso no
-    Telegram, tipo "Bot iniciado: N vagas registradas. A partir de amanhã você recebe só as
-    novas."
 - **Fase 6 — GitHub Actions:** execução diária, Secrets do Telegram, commit do `dados/vagas.db`.
 
 ## Status
@@ -102,4 +119,5 @@ pytest -v                    # testes (nunca chamam a Gupy de verdade)
 - [x] Fase 2 — filtros (palavras-chave, localização, banco de talentos)
 - [x] Fase 3 — banco SQLite de vagas já vistas
 - [x] Fase 4 — envio pelo Telegram
-- [ ] Fases 5 e 6
+- [x] Fase 5 — `main.py` ligando tudo
+- [ ] Fase 6 — GitHub Actions
